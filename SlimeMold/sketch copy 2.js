@@ -1,41 +1,30 @@
-const numOfAgents = 10000;
+const numOfAgents = 1000;
 const speed = 1;
 const viewDistance = 10;
 const viewAngle = 3.14159265358979323846 / 6;
 const turnAngle = 3.14159265358979323846 / 8;
-const outputWidth = 1024;
-const outputHeight = 1024;
 
 let blurShader;
 let agentDrawerShader;
 let agents = [];
 let rollingFrameRate = [];
-let agentPass;
-let testPass;
-let gauss = [
-	0.003765, 0.015019, 0.023792, 0.015019, 0.003765, 0.015019, 0.059912,
-	0.094907, 0.059912, 0.015019, 0.023792, 0.094907, 0.150342, 0.094907,
-	0.023792, 0.015019, 0.059912, 0.094907, 0.059912, 0.015019, 0.003765,
-	0.015019, 0.023792, 0.015019, 0.003765,
-];
-let decayFactor = 0.999;
 
 function preload() {
 	// load the shader
 	blurShader = loadShader("shaders/blur.vert", "shaders/blur.frag");
+	agentDrawerShader = loadShader(
+		"shaders/agentDrawer.vert",
+		"shaders/agentDrawer.frag"
+	);
 }
 
 function setup() {
 	pixelDensity(1);
 	randomSeed(420);
 
-	agentPass = createGraphics(outputWidth, outputHeight);
-	testPass = createGraphics(outputWidth, outputHeight);
-	blurPass = createGraphics(outputWidth, outputHeight, WEBGL);
-	createCanvas(outputWidth, outputHeight);
-	agentPass.stroke(255);
-	agentPass.strokeWeight(0);
-	noStroke();
+	createCanvas(1024, 1024, WEBGL);
+	stroke(255);
+	strokeWeight(0);
 	noSmooth();
 
 	// create agents
@@ -46,36 +35,46 @@ function setup() {
 		});
 	}
 
-	agentPass.background(0);
-	makeTestImage();
+	// background(64);
+	background(0);
 }
 
 function draw() {
-	agentPass.image(blurPass, 0, 0);
-	agentPass.loadPixels();
+	loadPixels();
 	marchAgents();
-	addAgents();
-	agentPass.updatePixels();
+	// addAgents();
+	drawAgents();
 
-	blurShader.setUniform("u_resolution", [width, height]);
-	blurShader.setUniform("u_gauss", gauss);
-	blurShader.setUniform("u_decayFactor", decayFactor);
-	blurShader.setUniform("tex0", agentPass);
-	blurPass.shader(blurShader);
+	rollingFrameRate.push(frameRate());
+	if (rollingFrameRate.length > 20) rollingFrameRate.shift();
 
-	blurPass.rect(0, 0, width, height);
+	let totalFrameRate = 0;
+	for (let i of rollingFrameRate) totalFrameRate += i;
+	console.log(totalFrameRate / 20);
+}
 
-	image(blurPass, 0, 0);
-	printFrameRate();
+// function that will draw the agents using a shader
+function drawAgents() {
+	// format into arrays to be passed to the shader
+	let agentPositionsX = [];
+	let agentPositionsY = [];
+	// let agentRotations = [];
+	agents.forEach((agent) => {
+		agentPositionsX.push(floor(agent.position.x));
+		agentPositionsY.push(floor(agent.position.y));
+		// agentRotations.push(agent.rotations);
+	});
+	agentDrawerShader.setUniform("u_resolution", [width, height]);
+	agentDrawerShader.setUniform("u_agentPositionsX", agentPositionsX);
+	agentDrawerShader.setUniform("u_agentPositionsY", agentPositionsY);
+	shader(agentDrawerShader);
+	rect(0, 0, width, height);
 }
 
 // function that will set all the agent positions to white
 function addAgents() {
 	for (agent of agents) {
-		// point(agent.position.x - width / 2, agent.position.y - height / 2);
-		agentPass.pixels[getIndex(agent.position)] = 255;
-		agentPass.pixels[getIndex(agent.position) + 1] = 255;
-		agentPass.pixels[getIndex(agent.position) + 2] = 255;
+		point(agent.position.x - width / 2, agent.position.y - height / 2);
 	}
 }
 
@@ -130,24 +129,4 @@ function getIndex(vector) {
 	return (
 		width * height * 4 - (floor(vector.y) * width + floor(vector.x + 1)) * 4
 	);
-}
-
-// prints a rolling frame rate for debug
-function printFrameRate() {
-	let frequency = 100;
-	rollingFrameRate.push(frameRate());
-	if (rollingFrameRate.length > frequency) rollingFrameRate.shift();
-
-	let totalFrameRate = 0;
-	for (let i of rollingFrameRate) totalFrameRate += i;
-	if (frameCount % frequency == 0) console.log(totalFrameRate / frequency);
-}
-
-// test function for debugging
-function makeTestImage() {
-	testPass.fill(255);
-	testPass.background(48);
-	testPass.rect(width / 4, height / 4, width / 2, height / 2);
-	testPass.fill(28);
-	testPass.rect((3 * width) / 8, (3 * height) / 8, width / 4, height / 4);
 }

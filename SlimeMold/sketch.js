@@ -1,10 +1,11 @@
 const numOfAgents = 10000;
-const speed = 1;
+const speed = 3;
 const viewDistance = 10;
 const viewAngle = 3.14159265358979323846 / 6;
-const turnAngle = 3.14159265358979323846 / 8;
+const turnAngle = 3.14159265358979323846 / 16;
 const outputWidth = 1024;
 const outputHeight = 1024;
+const angleRandomness = 3.14159265358979323846 / 6;
 
 let blurShader;
 let agentDrawerShader;
@@ -66,7 +67,7 @@ function draw() {
 	blurPass.rect(0, 0, width, height);
 
 	image(blurPass, 0, 0);
-	printFrameRate();
+	// printFrameRate();
 }
 
 // function that will set all the agent positions to white
@@ -83,17 +84,25 @@ function addAgents() {
 function marchAgents() {
 	for (agent of agents) {
 		// handle collisions with sides
-		if (agent.position.x < 0 || agent.position.x >= width)
-			agent.angle += (PI / 2 - agent.angle) * 2;
-		if (agent.position.y < 0 || agent.position.y >= height)
-			agent.angle += (PI - agent.angle) * 2;
+		// if (agent.position.x < 0 || agent.position.x >= width)
+		// 	agent.angle += (PI / 2 - agent.angle) * 2;
+		// if (agent.position.y < 0 || agent.position.y >= height)
+		// 	agent.angle += (PI - agent.angle) * 2;
+		if (agent.position.x < 0) agent.position.x += width;
+		if (agent.position.x >= width) agent.position.x -= width;
+		if (agent.position.y < 0) agent.position.y += height;
+		if (agent.position.y >= height) agent.position.y -= height;
 
 		// move in direction
-		agent.position.add(createVector(cos(agent.angle), sin(agent.angle)));
+		agent.position.add(
+			createVector(cos(agent.angle), sin(agent.angle)).mult(speed)
+		);
 
 		// check 30 degrees to the left and right and if either of them
 		// is brighter turn towards it
 		agent.angle += turnAngle * bestDirection(agent);
+		// add randomness
+		agent.angle += random(-angleRandomness, angleRandomness);
 	}
 }
 
@@ -112,7 +121,7 @@ function getView(agent, direction) {
 	if (newPos.x < 0 || newPos.x >= width || newPos.y < 0 || newPos.y >= height)
 		return 0;
 
-	return pixels[getIndex(newPos)];
+	return agentPass.pixels[getIndex(newPos)];
 }
 
 // gets which direction to turn
@@ -147,7 +156,7 @@ function printFrameRate() {
 function makeTestImage() {
 	testPass.fill(255);
 	testPass.background(48);
-	testPass.rect(width / 4, height / 4, width / 2, height / 2);
+	testPass.rect(width / 4, -height / 4, width / 2, height / 2);
 	testPass.fill(28);
 	testPass.rect((3 * width) / 8, (3 * height) / 8, width / 4, height / 4);
 }

@@ -19,6 +19,7 @@ let strokeWeightSlider;
 let sidesSlider;
 let pointsPerSideSlider;
 let deviationSlider;
+let presets;
 
 function setup() {
 	// set noise seed
@@ -61,6 +62,13 @@ function setup() {
 	deviationSlider = createSlider(0, 4, deviation, 0.1);
 	deviationSlider.position(10, 730);
 	deviationSlider.style("width", "80px");
+
+	presets = createSelect();
+	presets.position(10, 610 + 150);
+	presets.option("mac button shape");
+	presets.option("polygon");
+	presets.selected("mac button shape");
+	presets.changed(presetsChanged);
 }
 
 function draw() {
@@ -68,7 +76,13 @@ function draw() {
 	// text
 	fill(255);
 	strokeWeight(0);
-	text("Sides of polygon", 100, 610 + 10);
+	text("number of lines", 100, 610 + 10);
+	text("color width", 100, 610 + 30);
+	text("color shift", 100, 610 + 50);
+	text("line width", 100, 610 + 70);
+	text("sides of polygon", 100, 610 + 90);
+	text("points per line", 100, 610 + 110);
+	text("randomness", 100, 610 + 130);
 
 	if (mode == "INFINITY") testLine = infinityLine;
 	else
@@ -209,4 +223,10 @@ function generatePoly(sides, pointsPerSide) {
 			line.push(interpCoord);
 		}
 	return line;
+}
+
+function presetsChanged() {
+	let item = presets.value();
+	if (item == "mac button shape") mode = "INFINITY";
+	else if (item == "polygon") mode = "POLYGON";
 }

@@ -26,10 +26,12 @@ void main() {
 				color += u_gauss[int(x + gaussSize + (((gaussSize * 2.0) + 1.0) * (y + gaussSize)))] *
 							texture2D(tex0, vec2(useX, useY)).rgb;
 				// diffuse faster
-				color.rgb *= u_decayFactor;
+				color.r = pow(color.r, u_decayFactor);
+				color.g = pow(color.g, u_decayFactor);
+				color.b = pow(color.b, u_decayFactor);
 			}
+		}
 	}
-	}
-	// color = texture2D(tex0, vec2(st.x, st.y)).rgb;
+
 	gl_FragColor = vec4(color, 1.0);
 }

@@ -1,11 +1,16 @@
 const numOfAgents = 10000;
 const speed = 3;
 const viewDistance = 10;
-const viewAngle = 3.14159265358979323846 / 6;
-const turnAngle = 3.14159265358979323846 / 16;
+const viewAngle = 3.14159265358979323846 / 3;
+const turnAngle = 3.14159265358979323846 / 3;
+// const outputWidth = 3840;
+// const outputHeight = 2160;
 const outputWidth = 1024;
 const outputHeight = 1024;
-const angleRandomness = 3.14159265358979323846 / 6;
+const angleRandomness = 3.14159265358979323846 / 120;
+const recordingFrameRate = 30;
+const numFrames = 30 * recordingFrameRate;
+const decayFactor = 1.001;
 
 let blurShader;
 let agentDrawerShader;
@@ -19,11 +24,24 @@ let gauss = [
 	0.023792, 0.015019, 0.059912, 0.094907, 0.059912, 0.015019, 0.003765,
 	0.015019, 0.023792, 0.015019, 0.003765,
 ];
-let decayFactor = 0.999;
+let recording = false;
+let recordedFrames = 0;
 
 function preload() {
 	// load the shader
 	blurShader = loadShader("shaders/blur.vert", "shaders/blur.frag");
+
+	// used to record video
+	HME.createH264MP4Encoder().then((enc) => {
+		encoder = enc;
+		encoder.outputFilename = "slimeMold";
+		encoder.width = outputWidth;
+		encoder.height = outputHeight;
+		encoder.frameRate = recordingFrameRate;
+		encoder.kbps = 50000; // video quality
+		encoder.groupOfPictures = 10; // lower if you have fast actions.
+		encoder.initialize();
+	});
 }
 
 function setup() {
@@ -40,11 +58,26 @@ function setup() {
 	noSmooth();
 
 	// create agents
-	for (let i = 0; i < numOfAgents; i++) {
-		agents.push({
-			position: createVector(random(0, width), random(0, height)),
-			angle: random(0, TWO_PI),
-		});
+	while (agents.length < numOfAgents) {
+		// random position and angle pointing inwards
+		let randomPos = createVector(random(-1, 1), random(-1, 1));
+		let angle = randomPos.heading();
+
+		randomPos.x *= (3 * width) / 8;
+		randomPos.y *= (3 * height) / 8;
+		randomPos.add(createVector(width / 2, height / 2));
+		let distance = p5.Vector.sub(
+			randomPos,
+			createVector(width / 2, height / 2)
+		).mag();
+
+		// make sure they are in the circle
+		if (distance < (3 * width) / 8) {
+			agents.push({
+				position: randomPos,
+				angle: angle + PI,
+			});
+		}
 	}
 
 	agentPass.background(0);
@@ -68,26 +101,49 @@ function draw() {
 
 	image(blurPass, 0, 0);
 	// printFrameRate();
+
+	// record
+	// keep adding new frame
+	if (recording) {
+		console.log("recording");
+		encoder.addFrameRgba(
+			drawingContext.getImageData(0, 0, encoder.width, encoder.height).data
+		);
+		recordedFrames++;
+	}
+	// finalize encoding and export as mp4
+	if (recordedFrames === numFrames) {
+		recording = false;
+		recordedFrames = 0;
+		console.log("recording stopped");
+
+		encoder.finalize();
+		const uint8Array = encoder.FS.readFile(encoder.outputFilename);
+		const anchor = document.createElement("a");
+		anchor.href = URL.createObjectURL(
+			new Blob([uint8Array], { type: "video/mp4" })
+		);
+		anchor.download = encoder.outputFilename;
+		anchor.click();
+		encoder.delete();
+
+		preload(); // reinitialize encoder
+	}
 }
 
 // function that will set all the agent positions to white
 function addAgents() {
-	for (agent of agents) {
-		// point(agent.position.x - width / 2, agent.position.y - height / 2);
+	agents.forEach((agent) => {
 		agentPass.pixels[getIndex(agent.position)] = 255;
 		agentPass.pixels[getIndex(agent.position) + 1] = 255;
 		agentPass.pixels[getIndex(agent.position) + 2] = 255;
-	}
+	});
 }
 
 // function to iterate all agents forward
 function marchAgents() {
-	for (agent of agents) {
+	agents.forEach((agent) => {
 		// handle collisions with sides
-		// if (agent.position.x < 0 || agent.position.x >= width)
-		// 	agent.angle += (PI / 2 - agent.angle) * 2;
-		// if (agent.position.y < 0 || agent.position.y >= height)
-		// 	agent.angle += (PI - agent.angle) * 2;
 		if (agent.position.x < 0) agent.position.x += width;
 		if (agent.position.x >= width) agent.position.x -= width;
 		if (agent.position.y < 0) agent.position.y += height;
@@ -103,7 +159,7 @@ function marchAgents() {
 		agent.angle += turnAngle * bestDirection(agent);
 		// add randomness
 		agent.angle += random(-angleRandomness, angleRandomness);
-	}
+	});
 }
 
 // get a pixel at a given offset from the current position
@@ -117,9 +173,11 @@ function getView(agent, direction) {
 		).mult(viewDistance)
 	);
 
-	// if looking out of bounds just return
-	if (newPos.x < 0 || newPos.x >= width || newPos.y < 0 || newPos.y >= height)
-		return 0;
+	// handle the edges of the screen
+	if (newPos.x < 0) newPos.x += width;
+	if (newPos.x >= width) newPos.x -= width;
+	if (newPos.y < 0) newPos.y += height;
+	if (newPos.y >= height) newPos.y -= height;
 
 	return agentPass.pixels[getIndex(newPos)];
 }
@@ -144,7 +202,7 @@ function getIndex(vector) {
 // prints a rolling frame rate for debug
 function printFrameRate() {
 	let frequency = 100;
-	rollingFrameRate.push(frameRate());
+	rollingFrameRate.push(recordingFrameRate());
 	if (rollingFrameRate.length > frequency) rollingFrameRate.shift();
 
 	let totalFrameRate = 0;
